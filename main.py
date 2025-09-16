@@ -19,15 +19,18 @@ RENAME_MAP = {
 }
 REQUIRED_COLS = {"기준_년분기_코드", "분기매출액", "분기거래건수", "상권이름", "업종", "상권유형"}
 
+AGE_COLS = [
+    "연령대_10_매출_금액", "연령대_20_매출_금액", "연령대_30_매출_금액",
+    "연령대_40_매출_금액", "연령대_50_매출_금액", "연령대_60_이상_매출_금액"
+]
+
 # ---------------- 헬퍼 함수 ----------------
 @st.cache_data(show_spinner=False)
 def load_data(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, encoding="cp949")
     df = df.rename(columns=RENAME_MAP)
     # 숫자형 변환
-    num_cols = ["분기매출액", "분기거래건수", "남성_매출_금액", "여성_매출_금액",
-                "연령대_10_매출_금액", "연령대_20_매출_금액", "연령대_30_매출_금액",
-                "연령대_40_매출_금액", "연령대_50_매출_금액", "연령대_60_이상_매출_금액"]
+    num_cols = ["분기매출액", "분기거래건수", "남성_매출_금액", "여성_매출_금액"] + AGE_COLS
     for col in num_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -57,10 +60,16 @@ st.title("📊 서울 상권 분기 대시보드")
 
 # 데이터 로드
 if not Path(DATA_FILE).exists():
-    st.error(f"데이터 파일을 찾을 수 없어요: `{DATA_FILE}`\n파일 이름과 위치를 확인해 주세요. (코드와 같은 폴더)")
+    st.error(f"데이터 파일을 찾을 수 없어요: `{DATA_FILE}`")
     st.stop()
 
 df = load_data(DATA_FILE)
+
+# 필수 컬럼 체크
+missing = [c for c in REQUIRED_COLS if c not in df.columns]
+if missing:
+    st.error(f"아래 필수 컬럼이 누락되어 있어요: {missing}")
+    st.stop()
 
 # ---------------- 사이드바: 데이터 필터 ----------------
 st.sidebar.header("🧰 데이터 필터")
@@ -106,16 +115,13 @@ selected_biz = st.sidebar.multiselect(
 # ---------------- 필터 적용 (filtered_data) ----------------
 filtered_data = df.copy()
 
-# 1) 분기
 if not selected_quarters or (q_all_label not in selected_quarters):
     if selected_quarters:
         filtered_data = filtered_data[filtered_data["기준_년분기_코드"].astype(str).isin(selected_quarters)]
 
-# 2) 상권유형
 if selected_types:
     filtered_data = filtered_data[filtered_data["상권유형"].isin(selected_types)]
 
-# 3) 업종
 if selected_biz:
     filtered_data = filtered_data[filtered_data["업종"].isin(selected_biz)]
 
@@ -123,16 +129,14 @@ if selected_biz:
 st.sidebar.markdown(f"**필터링된 데이터: {len(filtered_data):,}건**")
 
 if filtered_data.empty:
-    st.warning("선택한 조건에 맞는 데이터가 없습니다. 🔍 필터를 조정해 보세요!")
+    st.warning("선택한 조건에 맞는 데이터가 없습니다.")
     st.stop()
 
-# ---------------- 탭 구성 ----------------
+# ---------------- 탭 ----------------
 tab1, tab2 = st.tabs(["📈 매출 현황", "👥 고객 분석"])
 
-# === 매출 현황 탭 ===
+# 매출 현황 탭
 with tab1:
-    st.subheader("📈 매출 현황")
-
     total_sales = float(filtered_data["분기매출액"].sum(skipna=True))
     total_cnt   = float(filtered_data["분기거래건수"].sum(skipna=True))
     n_areas     = int(filtered_data["상권이름"].nunique(dropna=True))
@@ -150,7 +154,7 @@ with tab1:
 
     st.divider()
 
-    # 업종별 매출 TOP10
+    # 업종별 매출 TOP 10
     top10 = (
         filtered_data.groupby("업종", as_index=False)["분기매출액"]
         .sum()
@@ -162,10 +166,7 @@ with tab1:
     top10["순위"] = top10.index + 1
     top10["업종라벨"] = top10["순위"].apply(add_medal) + top10["업종"]
 
-    st.subheader("🏆 분기 매출 TOP 10 업종")
-
-    bar_height = 30
-    chart_height = max(320, bar_height * len(top10))
+    st.subheader("📊 분기 매출 TOP 10 업종")
 
     base = alt.Chart(top10).encode(
         y=alt.Y("업종라벨:N", sort="-x", title=None),
@@ -178,81 +179,53 @@ with tab1:
         ],
     )
 
-    bars = base.mark_bar(cornerRadiusEnd=6).properties(
-        height=chart_height,
-    )
-
-    labels = base.mark_text(
-        align="left",
-        dx=6,
-        fontSize=12
-    ).encode(
+    bars = base.mark_bar(cornerRadiusEnd=6).properties(height=320)
+    labels = base.mark_text(align="left", dx=6, fontSize=12).encode(
         text=alt.Text("억원:Q", format=",.1f")
     )
+    st.altair_chart(bars + labels, use_container_width=True)
 
-    chart = (bars + labels).configure_axis(
-        labelLimit=340,
-        labelFontSize=12,
-        titleFontSize=13
-    ).configure_view(
-        stroke=None
-    )
-
-    st.altair_chart(chart, use_container_width=True)
-
-# === 고객 분석 탭 ===
+# 고객 분석 탭
 with tab2:
-    st.subheader("👥 고객 분석")
+    st.subheader("🧑‍🤝‍🧑 성별 매출 비율")
 
-    # --- 성별 매출 도넛 ---
-    if {"남성_매출_금액", "여성_매출_금액"}.issubset(filtered_data.columns):
-        gender_df = pd.DataFrame({
-            "성별": ["남성", "여성"],
-            "매출액": [
-                filtered_data["남성_매출_금액"].sum(skipna=True),
-                filtered_data["여성_매출_금액"].sum(skipna=True),
-            ]
-        })
-        gender_df["억원"] = gender_df["매출액"] / 1e8
+    if "남성_매출_금액" in filtered_data.columns and "여성_매출_금액" in filtered_data.columns:
+        gender_sum = {
+            "남성": filtered_data["남성_매출_금액"].sum(skipna=True),
+            "여성": filtered_data["여성_매출_금액"].sum(skipna=True),
+        }
+        gender_df = pd.DataFrame(
+            {"성별": list(gender_sum.keys()), "매출액": list(gender_sum.values())}
+        )
+        gender_df["비율"] = gender_df["매출액"] / gender_df["매출액"].sum()
 
-        donut = alt.Chart(gender_df).mark_arc(innerRadius=80).encode(
-            theta="매출액:Q",
-            color=alt.Color("성별:N", scale=alt.Scale(scheme="category10")),
+        gender_chart = alt.Chart(gender_df).mark_arc(innerRadius=60).encode(
+            theta=alt.Theta("매출액:Q"),
+            color=alt.Color("성별:N", legend=alt.Legend(title="성별")),
             tooltip=[
-                alt.Tooltip("성별:N", title="성별"),
-                alt.Tooltip("매출액:Q", title="매출액(원)", format=","),
-                alt.Tooltip("억원:Q", title="매출액(억원)", format=",.1f"),
-                alt.Tooltip("매출액:Q", title="비율", format=".1%")
+                alt.Tooltip("성별:N"),
+                alt.Tooltip("매출액:Q", format=","),
+                alt.Tooltip("비율:Q", format=".1%")
             ],
-        ).properties(title="성별 매출 비중")
+        )
+        st.altair_chart(gender_chart, use_container_width=True)
+    else:
+        st.info("⚠️ 데이터에 성별 매출 컬럼(남성_매출_금액, 여성_매출_금액)이 없습니다.")
 
-        st.altair_chart(donut, use_container_width=True)
+    st.subheader("📊 연령대별 매출 현황")
 
-    # --- 연령대 매출 막대 ---
-    age_cols = ["연령대_10_매출_금액", "연령대_20_매출_금액", "연령대_30_매출_금액",
-                "연령대_40_매출_금액", "연령대_50_매출_금액", "연령대_60_이상_매출_금액"]
-
-    available_age_cols = [c for c in age_cols if c in filtered_data.columns]
-    if available_age_cols:
+    age_available = [col for col in AGE_COLS if col in filtered_data.columns]
+    if age_available:
         age_df = pd.DataFrame({
-            "연령대": [c.replace("연령대_", "").replace("_매출_금액", "") for c in available_age_cols],
-            "매출액": [filtered_data[c].sum(skipna=True) for c in available_age_cols]
+            "연령대": [col.replace("_매출_금액", "") for col in age_available],
+            "매출액": [filtered_data[col].sum(skipna=True) for col in age_available]
         })
-        age_df["억원"] = age_df["매출액"] / 1e8
 
-        bar = alt.Chart(age_df).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+        age_chart = alt.Chart(age_df).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
             x=alt.X("연령대:N", title="연령대"),
-            y=alt.Y("억원:Q", title="매출액(억원)", axis=alt.Axis(format=",.1f")),
-            tooltip=[
-                alt.Tooltip("연령대:N", title="연령대"),
-                alt.Tooltip("매출액:Q", title="매출액(원)", format=","),
-                alt.Tooltip("억원:Q", title="매출액(억원)", format=",.1f"),
-            ],
-        ).properties(title="연령대별 매출 현황")
-
-        st.altair_chart(bar, use_container_width=True)
-
-# ---------------- 미리보기 ----------------
-with st.expander("🔎 데이터 미리보기 / 컬럼 확인"):
-    st.write("변환된 주요 컬럼: `기준_년분기_코드`, `상권유형`, `상권코드`, `상권이름`, `업종`, `분기매출액`, `분기거래건수` 등")
-    st.dataframe(filtered_data.head(10), use_container_width=True)
+            y=alt.Y("매출액:Q", title="매출액(원)", axis=alt.Axis(format=",")),
+            tooltip=[alt.Tooltip("연령대:N"), alt.Tooltip("매출액:Q", format=",")]
+        )
+        st.altair_chart(age_chart, use_container_width=True)
+    else:
+        st.info("⚠️ 데이터에 연령대별 매출 컬럼이 없습니다.")
