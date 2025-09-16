@@ -116,7 +116,7 @@ st.sidebar.markdown(f"**필터링된 데이터: {len(filtered_data):,}건**")
 
 # ---------------- 추가 기능 ----------------
 # 데이터 다운로드
-csv_data = filtered_data.to_csv(index=False, encoding="utf-8-sig")
+csv_data = filtered_data.to_csv(index=False, encoding="cp949")
 st.sidebar.download_button(
     label="⬇️ 데이터 다운로드 (CSV)",
     data=csv_data,
