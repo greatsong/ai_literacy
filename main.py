@@ -5,7 +5,7 @@ import altair as alt
 # 데이터 불러오기
 @st.cache_data
 def load_data():
-    return pd.read_csv("your_data.csv", encoding="cp949")
+    return pd.read_csv("서울시_상권분석서비스_샘플.csv", encoding="cp949")
 
 data = load_data()
 
