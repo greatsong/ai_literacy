@@ -128,26 +128,25 @@ if selected_biz:
 # 데이터 개수 표시
 st.sidebar.markdown(f"**필터링된 데이터: {len(filtered_data):,}건**")
 
-# ---------------- 사이드바 버튼 ----------------
-# CSV 다운로드
-csv = filtered_data.to_csv(index=False, encoding="cp949")
+# ---------------- 사이드바: 추가 기능 ----------------
+# 데이터 다운로드 버튼
+csv_data = filtered_data.to_csv(index=False, encoding="cp949")
 st.sidebar.download_button(
-    label="📥 데이터 다운로드 (CSV)",
-    data=csv,
+    label="⬇️ 데이터 다운로드 (CSV)",
+    data=csv_data,
     file_name="filtered_data.csv",
     mime="text/csv",
 )
 
 # 필터 초기화 버튼
 if st.sidebar.button("🔄 필터 초기화"):
-    st.experimental_set_query_params()  # 쿼리 파라미터 초기화
-    st.rerun()
+    st.session_state.clear()
+    st.experimental_rerun()
 
 # 출처 표시
 st.sidebar.markdown(
-    "<sub>데이터 출처: "
-    "<a href='https://data.seoul.go.kr/' target='_blank'>서울 열린데이터광장</a></sub>",
-    unsafe_allow_html=True,
+    "<sub>데이터 출처: <a href='https://data.seoul.go.kr/' target='_blank'>서울 열린데이터광장</a></sub>",
+    unsafe_allow_html=True
 )
 
 if filtered_data.empty:
@@ -243,7 +242,9 @@ with tab2:
             "매출액": [filtered_data[col].sum(skipna=True) for col in age_available]
         })
 
-        age_chart = alt.Chart(age_df).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+        age_chart = alt.Chart(age_df).mark_bar(
+            cornerRadiusTopLeft=4, cornerRadiusTopRight=4
+        ).encode(
             x=alt.X("연령대:N", title="연령대"),
             y=alt.Y("매출액:Q", title="매출액(원)", axis=alt.Axis(format=",")),
             tooltip=[alt.Tooltip("연령대:N"), alt.Tooltip("매출액:Q", format=",")]
@@ -253,5 +254,8 @@ with tab2:
         st.info("⚠️ 데이터에 연령대별 매출 컬럼이 없습니다.")
 
 # ---------------- 푸터 ----------------
-st.markdown("---")
-st.markdown("<p style='text-align: center; font-size: 13px;'>Made by 석리송, with AI support</p>", unsafe_allow_html=True)
+st.markdown(
+    "<hr style='margin-top:50px; margin-bottom:10px'>"
+    "<p style='text-align:center; color:gray'>Made by 석리송, with AI support</p>",
+    unsafe_allow_html=True
+)
