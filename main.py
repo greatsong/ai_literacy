@@ -126,7 +126,7 @@ st.sidebar.download_button(
 
 # 필터 초기화 (페이지 리셋)
 if st.sidebar.button("🔄 필터 초기화"):
-    st.experimental_rerun()
+    st.rerun()
 
 # 데이터 출처 표시
 st.sidebar.markdown(
