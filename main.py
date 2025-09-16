@@ -74,27 +74,16 @@ if missing:
 # ---------------- 사이드바: 데이터 필터 ----------------
 st.sidebar.header("🧰 데이터 필터")
 
-# 분기 필터
+# 기본값 정의
 q_all_label = "전체"
 q_options = sorted(df["기준_년분기_코드"].dropna().astype(str).unique().tolist())
-selected_quarters = st.sidebar.multiselect(
-    "🗓️ 분기 선택",
-    options=[q_all_label] + q_options,
-    default=[q_all_label],
-)
+default_quarters = [q_all_label]
 
-# 상권유형 필터
 type_options = sorted(df["상권유형"].dropna().unique().tolist())
 default_types = [v for v in ["골목상권", "전통시장"] if v in type_options]
 if not default_types:
     default_types = type_options
-selected_types = st.sidebar.multiselect(
-    "🏙️ 상권유형",
-    options=type_options,
-    default=default_types,
-)
 
-# 업종 필터 (전체 기준 매출 TOP5)
 top5_overall = (
     df.groupby("업종", as_index=False)["분기매출액"]
     .sum()
@@ -106,27 +95,44 @@ biz_options = sorted(df["업종"].dropna().unique().tolist())
 default_biz = [b for b in top5_overall if b in biz_options]
 if not default_biz:
     default_biz = biz_options[:5]
-selected_biz = st.sidebar.multiselect(
-    "🏷️ 업종",
-    options=biz_options,
-    default=default_biz,
-)
+
+# 필터 위젯
+selected_quarters = st.sidebar.multiselect("🗓️ 분기 선택", [q_all_label] + q_options, default=default_quarters)
+selected_types = st.sidebar.multiselect("🏙️ 상권유형", type_options, default=default_types)
+selected_biz = st.sidebar.multiselect("🏷️ 업종", biz_options, default=default_biz)
 
 # ---------------- 필터 적용 (filtered_data) ----------------
 filtered_data = df.copy()
-
 if not selected_quarters or (q_all_label not in selected_quarters):
     if selected_quarters:
         filtered_data = filtered_data[filtered_data["기준_년분기_코드"].astype(str).isin(selected_quarters)]
-
 if selected_types:
     filtered_data = filtered_data[filtered_data["상권유형"].isin(selected_types)]
-
 if selected_biz:
     filtered_data = filtered_data[filtered_data["업종"].isin(selected_biz)]
 
 # 데이터 개수 표시
 st.sidebar.markdown(f"**필터링된 데이터: {len(filtered_data):,}건**")
+
+# ---------------- 추가 기능 ----------------
+# 데이터 다운로드
+csv_data = filtered_data.to_csv(index=False, encoding="utf-8-sig")
+st.sidebar.download_button(
+    label="⬇️ 데이터 다운로드 (CSV)",
+    data=csv_data,
+    file_name="filtered_data.csv",
+    mime="text/csv"
+)
+
+# 필터 초기화 (페이지 리셋)
+if st.sidebar.button("🔄 필터 초기화"):
+    st.experimental_rerun()
+
+# 데이터 출처 표시
+st.sidebar.markdown(
+    "<small>📑 데이터 출처: [서울 열린데이터광장](https://data.seoul.go.kr/)</small>",
+    unsafe_allow_html=True
+)
 
 if filtered_data.empty:
     st.warning("선택한 조건에 맞는 데이터가 없습니다.")
@@ -229,3 +235,7 @@ with tab2:
         st.altair_chart(age_chart, use_container_width=True)
     else:
         st.info("⚠️ 데이터에 연령대별 매출 컬럼이 없습니다.")
+
+# ---------------- 푸터 ----------------
+st.markdown("---")
+st.markdown("<center>Made by 석리송, with AI support</center>", unsafe_allow_html=True)
