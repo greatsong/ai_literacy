@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -145,4 +144,3 @@ st.markdown(
     "<hr><center>Made by 석리송, with AI support</center>",
     unsafe_allow_html=True
 )
-```
