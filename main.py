@@ -141,7 +141,7 @@ st.sidebar.download_button(
 # 필터 초기화 버튼
 if st.sidebar.button("🔄 필터 초기화"):
     st.session_state.clear()
-    st.experimental_rerun()
+    st.rerun()
 
 # 출처 표시
 st.sidebar.markdown(
